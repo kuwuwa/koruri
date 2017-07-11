@@ -25,3 +25,5 @@
 /captures
 .externalNativeBuild
 
+app/src/main/resources/twitter4j.properties
+app/src/test/resources/twitter4j.properties

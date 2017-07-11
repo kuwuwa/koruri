@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical" android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:weightSum="1">
+
+    <Button
+        android:id="@+id/open_auth_page_button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_weight="0.01"
+        android:text="open auth page in browser" />
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <EditText
+            android:id="@+id/auth_pin_text"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:ems="10"
+            android:hint="PIN code"
+            android:inputType="numberPassword" />
+
+        <Button
+            android:id="@+id/do_auth_button"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_weight="0.1"
+            android:text="ENTER" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/auth_status_message"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_weight="0.01"
+        android:text="" />
+</LinearLayout>
