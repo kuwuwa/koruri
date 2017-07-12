@@ -3,4 +3,6 @@
     <color name="colorPrimary">#30adcc</color>
     <color name="colorPrimaryDark">#1f758b</color>
     <color name="colorAccent">#f76597</color>
+
+    <color name="new_tweet_color">#FFFF88</color>
 </resources>

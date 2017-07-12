@@ -1,6 +1,7 @@
 package com.k3ntaroo.koruri;
 
 import android.content.Context;
+import android.content.Intent;
 import android.os.Handler;
 import android.os.Message;
 import android.os.Bundle;
@@ -13,6 +14,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
@@ -20,8 +22,9 @@ import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
 
 import twitter4j.RateLimitStatus;
@@ -29,7 +32,7 @@ import twitter4j.ResponseList;
 import twitter4j.Status;
 import twitter4j.TwitterException;
 
-public class TimelineActivity extends KoruriTwitterActivity implements View.OnClickListener {
+public class TimelineActivity extends KoruriTwitterActivity implements View.OnClickListener, AdapterView.OnItemClickListener {
     private final static String TAG = TimelineActivity.class.getName();
 
     private final String STATUS_LIST_KEY = TAG + "." + "STATUS_LIST";
@@ -47,30 +50,37 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
         tlAdapter = new ArrayAdapter<Status>(this, 0, statusList) {
             @Override
             public @NonNull View getView (int pos, @Nullable View view, ViewGroup par) {
-                if (view == null) {
+                if (null == view) {
                     LayoutInflater li = LayoutInflater.from(getContext());
-                    view = li.inflate(R.layout.post, par, false);
+                    view = li.inflate(R.layout.post_in_list, par, false);
                 }
 
-                TextView authorText = (TextView)view.findViewById(R.id.post_author);
-                TextView contentText = (TextView)view.findViewById(R.id.post_content);
-                TextView dateText = (TextView)view.findViewById(R.id.post_date);
-
                 Status st = getItem(pos);
-                String authorStr = st.getUser().getScreenName() + "(" + st.getUser().getName() + ")";
+
+                TextView authorText = (TextView) view.findViewById(R.id.post_author);
+                String authorStr = "@" + st.getUser().getScreenName();
                 authorText.setText(authorStr);
+
+                TextView contentText = (TextView) view.findViewById(R.id.post_content);
                 contentText.setText(st.getText());
 
-                String DATE_PATTERN = "yyyy/MM/dd HH:mm:ss";
-                String dateStr = new SimpleDateFormat(DATE_PATTERN).format(st.getCreatedAt());
-                Log.d(TAG, dateStr);
+                TextView dateText = (TextView) view.findViewById(R.id.post_date);
+                String dateStr = SIMPLE_DATE_FORMAT.format(st.getCreatedAt());
                 dateText.setText(dateStr);
+
+                TextView statusIdText = (TextView) view.findViewById(R.id.post_index);
+                statusIdText.setText(Long.toString(pos));
+
                 return view;
             }
         };
-        final ListView lv = (ListView) findViewById(R.id.timeline);
+
+        final ListView lv = (ListView) findViewById(R.id.post_in_list);
         lv.setAdapter(tlAdapter);
-        updateHomeTimeline();
+        lv.setOnItemClickListener(this);
+        if (statusList.size() == 0) {
+            updateHomeTimeline();
+        }
 
         // tweet
         final Button tweetButton = (Button) findViewById(R.id.timeline_tweet_button);
@@ -79,11 +89,27 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
 
     @Override
     public void onClick(View v) {
+        Log.d(TAG, Integer.toString(v.getId()));
         if (v.getId() == R.id.timeline_tweet_button) {
             final EditText tweetText = (EditText) findViewById(R.id.timeline_tweet_text);
             Thread th = new UpdateStatusThread(tweetText.getText().toString());
             th.start();
         }
+    }
+
+    @Override
+    public void onItemClick(AdapterView<?> parent, View view, int pos, long id) {
+        // a post in list is clicked
+        Status status = statusList.get(pos);
+        Intent detailIntent = new Intent(this, TweetDetailActivity.class);
+        String author =
+                "@" + status.getUser().getScreenName() + "/" + status.getUser().getName();
+        detailIntent
+                .putExtra(TweetDetailActivity.STATUS_ID_KEY, status.getId())
+                .putExtra(TweetDetailActivity.CONTENT_KEY, status.getText())
+                .putExtra(TweetDetailActivity.AUTHOR_KEY, author)
+                .putExtra(TweetDetailActivity.DATE_KEY, status.getCreatedAt().getTime());
+        startActivity(detailIntent);
     }
 
     @Override
@@ -106,6 +132,7 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
         Thread th = new GetHomeTimelineThread();
         th.start();
     }
+
 
     private class GetHomeTimelineThread extends Thread {
         @Override public void run() {
@@ -130,29 +157,37 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
         @Override public void run() {
             try {
                 twitter.updateStatus(this.text);
-                Message msg = handler.obtainMessage(UPD_STATUS, RESULT_OK);
+                Message msg = handler.obtainMessage(UPD_STATUS, UPD_SUCCESS);
                 handler.sendMessage(msg);
             } catch (TwitterException e) {
-                // failed to update status
+                Message msg = handler.obtainMessage(UPD_STATUS, UPD_FAIL);
+                handler.sendMessage(msg);
             }
         }
     }
 
     private Context ctx = this;
 
-    private final static int MSG_TL = 1115;
-    private final static int UPD_STATUS = 1116;
+    private final static int MSG_TL = 1210;
+    private final static int UPD_STATUS = 1220;
+    private final static int UPD_SUCCESS = 1211;
+    private final static int UPD_FAIL = 1212;
     private Handler handler = new Handler(new Handler.Callback() {
+        private final static int ONE_MILLISEC_PER_SEC = 1000;
 
         @Override public boolean handleMessage (Message msg) {
             if (msg.what == MSG_TL) {
                 ResponseList<Status> newStList = (ResponseList<Status>) msg.obj;
 
                 RateLimitStatus limitStatus = newStList.getRateLimitStatus();
-                limitStatus.getLimit();
+
+                long nowTime = Calendar.getInstance().getTimeInMillis();
+                long delay = ONE_MILLISEC_PER_SEC * limitStatus.getSecondsUntilReset();
+                String resetDateStr = SIMPLE_DATE_FORMAT.format(new Date(nowTime + delay));
 
                 String newTitle =
-                        "UPDATE(" + limitStatus.getRemaining() + "/" + limitStatus.getLimit() + ")";
+                        "UPDATE(" + limitStatus.getRemaining() + "/" + limitStatus.getLimit() + ")"
+                        + "(reset: " + resetDateStr.substring(11) + ")";
                 ActionMenuItemView updMenu = (ActionMenuItemView) findViewById(R.id.update_timeline);
                 updMenu.setText(newTitle);
 
@@ -177,7 +212,7 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
                 }
             } else if (msg.what == UPD_STATUS) {
                 int result = (int) msg.obj;
-                if (result == RESULT_OK) {
+                if (result == UPD_SUCCESS) {
                     final EditText tweetText = (EditText) findViewById(R.id.timeline_tweet_text);
                     Toast.makeText(
                             ctx,
@@ -185,11 +220,15 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
                             Toast.LENGTH_SHORT).show();
 
                     tweetText.setText(""); // clear
+                } else if (result == UPD_FAIL) {
+                    Toast.makeText(
+                            ctx,
+                            getString(R.string.tweet_sent_unsuccesfully),
+                            Toast.LENGTH_SHORT).show();
                 }
             }
             return false;
         }
     });
-
 }
 

@@ -14,9 +14,11 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".TweetDetailActivity"
+            android:exported="true" />
+
         <activity android:name=".AuthActivity"
-            android:exported="true">
-        </activity>
+            android:exported="true" />
     </application>
 
 </manifest>

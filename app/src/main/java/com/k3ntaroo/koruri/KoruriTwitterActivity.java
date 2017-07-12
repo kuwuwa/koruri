@@ -7,6 +7,8 @@ import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 
+import java.text.SimpleDateFormat;
+
 import twitter4j.Twitter;
 import twitter4j.TwitterFactory;
 import twitter4j.auth.AccessToken;
@@ -16,6 +18,9 @@ public class KoruriTwitterActivity extends AppCompatActivity {
     private final static int AUTH_REQ_CODE = 1001;
 
     protected static Twitter twitter = TwitterFactory.getSingleton();
+
+    protected final static String DATE_PATTERN = "yyyy/MM/dd HH:mm:ss";
+    protected final static SimpleDateFormat SIMPLE_DATE_FORMAT = new SimpleDateFormat(DATE_PATTERN);
 
     @Override
     protected void onCreate(Bundle savedInstance) {
