@@ -85,8 +85,6 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
 
         if (null == twitter.getConfiguration().getOAuthAccessToken()) {
             Log.d(TAG, "not authorized!");
-            // should be restarted after authorization
-            return;
         }
     }
 
@@ -94,7 +92,12 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
     public void onResume() {
         super.onResume();
 
-        if (statusList.size() == 0) {
+    }
+
+    @Override
+    public void onPostResume() {
+        super.onPostResume();
+        if (twitter.getAuthorization().isEnabled() && statusList.size() == 0) {
             updateHomeTimeline();
         }
     }
@@ -120,6 +123,7 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
+        super.onCreateOptionsMenu(menu);
         Log.d(TAG, "onCreateOptionsMenu");
         getMenuInflater().inflate(R.menu.timeline_menu, menu);
         return true;
@@ -149,6 +153,8 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
                 Message msg = handler.obtainMessage(MSG_TL, tl);
                 handler.sendMessage(msg);
             } catch (TwitterException e) {
+                Message msg = handler.obtainMessage(MSG_TL_FAILED);
+                handler.sendMessage(msg);
                 // xx
             }
         }
@@ -165,10 +171,10 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
         @Override public void run() {
             try {
                 twitter.updateStatus(this.text);
-                Message msg = handler.obtainMessage(UPD_STATUS, UPD_SUCCESS);
+                Message msg = handler.obtainMessage(UPD_SUCCESS);
                 handler.sendMessage(msg);
             } catch (TwitterException e) {
-                Message msg = handler.obtainMessage(UPD_STATUS, UPD_FAIL);
+                Message msg = handler.obtainMessage(UPD_FAIL);
                 handler.sendMessage(msg);
             }
         }
@@ -177,9 +183,9 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
     private Context ctx = this;
 
     private final static int MSG_TL = 1210;
-    private final static int UPD_STATUS = 1220;
-    private final static int UPD_SUCCESS = 1211;
-    private final static int UPD_FAIL = 1212;
+    private final static int MSG_TL_FAILED = 1211;
+    private final static int UPD_SUCCESS = 1221;
+    private final static int UPD_FAIL = 1222;
     private Handler handler = new Handler(new Handler.Callback() {
         private final static int ONE_MILLISEC_PER_SEC = 1000;
 
@@ -195,32 +201,38 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
 
                 String newTitle =
                         "UPDATE(" + limitStatus.getRemaining() + "/" + limitStatus.getLimit() + ")"
-                        + "(reset: " + resetDateStr.substring(11) + ")";
+                                + "(reset: " + resetDateStr.substring(11) + ")";
                 ActionMenuItemView updMenu = (ActionMenuItemView) findViewById(R.id.update_timeline);
-                updMenu.setText(newTitle);
+
+                if (null != updMenu) {
+                    updMenu.setText(newTitle);
+                }
 
                 for (Status st : newStList) {
                     Log.d(TAG, st.getUser().getScreenName() + ":" + st.getText());
                 }
 
                 if (statusList == null || statusList.size() == 0) {
+                    Log.d(TAG, "empty statuslist");
                     tlAdapter.addAll(newStList);
                 } else {
-                    Status prevFirstStatus = tlAdapter.getItem(0);
-                    int cutIdx = newStList.size() - 1;
-                    for (int j = 0; j < newStList.size(); ++j) {
-                        if (prevFirstStatus.getId() == newStList.get(j).getId()) {
-                            cutIdx = j;
-                            break;
+                    final Status ls = newStList.get(newStList.size() - 1);
+                    final long lsTime = ls.getCreatedAt().getTime();
+                    boolean add = false;
+                    for (int j = 0; j < tlAdapter.getCount(); ++j) {
+                        if (!add && lsTime > tlAdapter.getItem(j).getCreatedAt().getTime()) {
+                            add = true;
+                        }
+                        if (add) {
+                            newStList.add(tlAdapter.getItem(j));
                         }
                     }
-                    for (int j = newStList.size() - 1; j >= 0; --j) {
-                        tlAdapter.insert(newStList.get(j), 0);
-                    }
+                    tlAdapter.clear();
+                    tlAdapter.addAll(newStList);
                 }
-            } else if (msg.what == UPD_STATUS) {
-                int result = (int) msg.obj;
-                if (result == UPD_SUCCESS) {
+            } else if (msg.what == MSG_TL_FAILED) {
+                Toast.makeText(ctx, "failed in getting your home TL", Toast.LENGTH_SHORT);
+            } else if (msg.what == UPD_SUCCESS) {
                     final EditText tweetText = (EditText) findViewById(R.id.timeline_tweet_text);
                     Toast.makeText(
                             ctx,
@@ -228,12 +240,11 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
                             Toast.LENGTH_SHORT).show();
 
                     tweetText.setText(""); // clear
-                } else if (result == UPD_FAIL) {
-                    Toast.makeText(
-                            ctx,
-                            getString(R.string.tweet_sent_unsuccesfully),
-                            Toast.LENGTH_SHORT).show();
-                }
+            } else if (msg.what == UPD_FAIL) {
+                Toast.makeText(
+                        ctx,
+                        getString(R.string.tweet_sent_unsuccesfully),
+                        Toast.LENGTH_SHORT).show();
             }
             return false;
         }

@@ -8,9 +8,11 @@ import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 
+import java.io.IOException;
 import java.text.SimpleDateFormat;
 
 import twitter4j.Twitter;
+import twitter4j.TwitterException;
 import twitter4j.TwitterFactory;
 import twitter4j.auth.AccessToken;
 
@@ -18,6 +20,7 @@ public abstract class KoruriTwitterActivity extends AppCompatActivity {
     private final static String KEY_NAME = "KoruriTwitterActivity";
     private final static int AUTH_REQ_CODE = 1001;
 
+    protected long myId = -1;
     protected static Twitter twitter = TwitterFactory.getSingleton();
 
     protected final static String DATE_PATTERN = "yyyy/MM/dd HH:mm:ss";
@@ -57,6 +60,29 @@ public abstract class KoruriTwitterActivity extends AppCompatActivity {
         return twitter;
     }
 
+    protected long getMyId() {
+        if (myId != -1) return myId;
+        Thread th = new GetIdThread();
+        th.start();
+        try {
+            th.join();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        return myId;
+    }
+
+    private class GetIdThread extends Thread {
+        @Override public void run() {
+            try {
+                myId = twitter.getId();
+            } catch (TwitterException e) {
+                // give up
+            }
+
+        }
+    }
+
     protected void storeAccessToken(final AccessToken accessToken) {
         SharedPreferences sharedPref = getApplicationContext()
                 .getSharedPreferences(
@@ -79,6 +105,7 @@ public abstract class KoruriTwitterActivity extends AppCompatActivity {
     protected void onActivityResult(int reqCode, int resCode, Intent data) {
         super.onActivityResult(reqCode, resCode, data);
         if (reqCode == AUTH_REQ_CODE && resCode == RESULT_OK) {
+            myId = data.getLongExtra("userId", -1);
             Log.d(KEY_NAME, "authorized!");
             recreate();
         }
