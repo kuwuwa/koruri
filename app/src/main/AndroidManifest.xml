@@ -17,6 +17,9 @@
         <activity android:name=".TweetDetailActivity"
             android:exported="true" />
 
+        <activity android:name=".UserDetailActivity"
+            android:exported="true" />
+
         <activity android:name=".AuthActivity"
             android:exported="true" />
     </application>

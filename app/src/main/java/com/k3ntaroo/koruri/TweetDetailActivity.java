@@ -1,18 +1,22 @@
 package com.k3ntaroo.koruri;
 
 import android.content.Context;
+import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import twitter4j.Status;
 import twitter4j.StatusUpdate;
 import twitter4j.TwitterException;
+import twitter4j.User;
 
 public class TweetDetailActivity extends KoruriTwitterActivity implements View.OnClickListener {
     private final static String className = TweetDetailActivity.class.getName();
@@ -33,9 +37,13 @@ public class TweetDetailActivity extends KoruriTwitterActivity implements View.O
         }
 
         setContentView(R.layout.post_detail);
-        TextView authorView = (TextView) findViewById(R.id.post_author);
-        String author = "@" + detailedStatus.getUser().getScreenName() + "/" + detailedStatus.getUser().getName();
-        authorView.setText(author);
+        TextView authorScreenNameView = (TextView) findViewById(R.id.post_author_screen_name);
+        authorScreenNameView.setText(detailedStatus.getUser().getScreenName());
+        TextView authorView = (TextView) findViewById(R.id.post_author_name);
+        authorView.setText(detailedStatus.getUser().getName());
+
+        LinearLayout userLL = (LinearLayout) findViewById(R.id.post_author_box);
+        userLL.setOnClickListener(this);
 
         TextView contentView = (TextView) findViewById(R.id.post_content);
         contentView.setText(detailedStatus.getText());
@@ -61,7 +69,12 @@ public class TweetDetailActivity extends KoruriTwitterActivity implements View.O
 
     @Override
     public void onClick(View v) {
-        if (v.getId() == R.id.reply_button) {
+        if (v.getId() == R.id.post_author_box) {
+            User user = detailedStatus.getUser();
+            Intent userIntent = new Intent(this, UserDetailActivity.class);
+            userIntent.putExtra(UserDetailActivity.USER_KEY, user);
+            startActivity(userIntent);
+        } else if (v.getId() == R.id.reply_button) {
             EditText replyText = (EditText) findViewById(R.id.reply_text);
             String content = replyText.getText().toString();
             if (!"".equals(content)) {

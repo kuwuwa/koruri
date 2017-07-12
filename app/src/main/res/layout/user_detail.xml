@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="match_parent" android:layout_height="match_parent">
+
+    <!-- bio -->
+    <LinearLayout
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_margin="2pt"
+        android:orientation="vertical">
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="2pt"
+            android:orientation="horizontal">
+            <ImageView android:id="@+id/user_thumbnail"
+                android:maxWidth="24pt" android:maxHeight="24pt"
+                android:layout_width="wrap_content" android:layout_height="wrap_content">
+            </ImageView>
+
+            <LinearLayout
+                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="vertical">
+                <LinearLayout
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+                    <TextView
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textStyle="bold"
+                        android:textSize="12pt"
+                        android:text="\@"/>
+                    <TextView android:id="@+id/user_screen_name"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textStyle="bold"
+                        android:textSize="12pt"
+                        android:text="screen_name" />
+                </LinearLayout>
+                <LinearLayout
+                    android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+                    <TextView
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:textStyle="bold"
+                        android:textSize="8pt"
+                        android:text=" ("/>
+                    <TextView android:id="@+id/user_name"
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:textStyle="bold"
+                        android:textSize="8pt"
+                        android:text="name" />
+                    <TextView
+                        android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:textStyle="bold"
+                        android:textSize="8pt"
+                        android:text=")"/>
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_weight="0.5">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="FOLLOWINGS:"/>
+                <TextView android:id="@+id/user_num_followings"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="#following"/>
+            </LinearLayout>
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_weight="0.5">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="FOLLOWERS:"/>
+                <TextView android:id="@+id/user_num_followers"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="#followers"/>
+            </LinearLayout>
+        </LinearLayout>
+
+        <TextView android:id="@+id/user_bio"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_margin="2pt"
+            android:textSize="9pt"
+            android:text="bio"/>
+
+        <TextView android:id="@+id/user_location"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_margin="2pt"
+            android:textSize="9pt"
+            android:text="location"/>
+
+        <TextView android:id="@+id/user_website"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_margin="2pt"
+            android:textSize="9pt"
+            android:text="website"/>
+    </LinearLayout>
+
+    <!-- FOLLOW BUTTON -->
+
+    <!-- statuses -->
+    <ListView
+        android:id="@+id/user_statuses"
+        android:layout_width="match_parent" android:layout_height="0dp"
+        android:layout_weight="1">
+
+    </ListView>
+
+</LinearLayout>
