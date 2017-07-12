@@ -6,4 +6,9 @@
         android:orderInCategory="100"
         android:title="UPDATE"
         app:showAsAction="ifRoom|withText"/>
+
+    <item
+        android:id="@+id/logout"
+        android:orderInCategory="100"
+        android:title="logout" />
 </menu>

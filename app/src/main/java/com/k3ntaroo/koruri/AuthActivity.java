@@ -1,23 +1,31 @@
 package com.k3ntaroo.koruri;
 
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
+import android.support.v4.app.ActivityCompat;
+import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 
-
+import twitter4j.Twitter;
 import twitter4j.TwitterException;
+import twitter4j.TwitterFactory;
 import twitter4j.auth.AccessToken;
 import twitter4j.auth.RequestToken;
 
-public class AuthActivity extends KoruriTwitterActivity implements View.OnClickListener {
-    private final String name = "AuthActivity";
+public class AuthActivity extends AppCompatActivity implements View.OnClickListener {
+    private final static String TAG = AuthActivity.class.getName();
+    private final static int AUTH_REQ_CODE = 1001;
+
+    private final Twitter twitter = TwitterFactory.getSingleton();
 
     private EditText pinText;
     private RequestToken reqToken;
@@ -45,7 +53,7 @@ public class AuthActivity extends KoruriTwitterActivity implements View.OnClickL
 
     @Override
     public void onClick(View v) {
-        Log.d(name, "click");
+        Log.d(TAG, "click");
         if (v.getId() == R.id.open_auth_page_button) {
             new GetAuthURLThread().start();
         } else if (v.getId() == R.id.do_auth_button) {
@@ -118,4 +126,28 @@ public class AuthActivity extends KoruriTwitterActivity implements View.OnClickL
             return false;
         }
     });
+
+    @Override
+    protected void onActivityResult(int reqCode, int resCode, Intent data) {
+        super.onActivityResult(reqCode, resCode, data);
+        if (reqCode == AUTH_REQ_CODE && resCode == RESULT_OK) {
+            Log.d(TAG, "already authorized");
+        }
+    }
+
+    private void storeAccessToken(final AccessToken accessToken) {
+        SharedPreferences sharedPref = getApplicationContext()
+                .getSharedPreferences(
+                        getString(R.string.koruri_key),
+                        Context.MODE_PRIVATE);
+
+        SharedPreferences.Editor editor = sharedPref.edit();
+        editor.putString(
+                getString(R.string.access_token_path),
+                accessToken.getToken());
+        editor.putString(
+                getString(R.string.access_token_secret_path),
+                accessToken.getTokenSecret());
+        editor.commit();
+    }
 }

@@ -78,13 +78,25 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
         final ListView lv = (ListView) findViewById(R.id.post_in_list);
         lv.setAdapter(tlAdapter);
         lv.setOnItemClickListener(this);
-        if (statusList.size() == 0) {
-            updateHomeTimeline();
-        }
 
         // tweet
         final Button tweetButton = (Button) findViewById(R.id.timeline_tweet_button);
         tweetButton.setOnClickListener(this);
+
+        if (null == twitter.getConfiguration().getOAuthAccessToken()) {
+            Log.d(TAG, "not authorized!");
+            // should be restarted after authorization
+            return;
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+
+        if (statusList.size() == 0) {
+            updateHomeTimeline();
+        }
     }
 
     @Override
@@ -102,13 +114,7 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
         // a post in list is clicked
         Status status = statusList.get(pos);
         Intent detailIntent = new Intent(this, TweetDetailActivity.class);
-        String author =
-                "@" + status.getUser().getScreenName() + "/" + status.getUser().getName();
-        detailIntent
-                .putExtra(TweetDetailActivity.STATUS_ID_KEY, status.getId())
-                .putExtra(TweetDetailActivity.CONTENT_KEY, status.getText())
-                .putExtra(TweetDetailActivity.AUTHOR_KEY, author)
-                .putExtra(TweetDetailActivity.DATE_KEY, status.getCreatedAt().getTime());
+        detailIntent.putExtra(TweetDetailActivity.STATUS_KEY, status);
         startActivity(detailIntent);
     }
 
@@ -123,6 +129,8 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
     public boolean onOptionsItemSelected(MenuItem item) {
         if (item.getItemId() == R.id.update_timeline) {
             updateHomeTimeline();
+        } else if(item.getItemId() == R.id.logout) {
+            logout();
         }
         return true;
     }
