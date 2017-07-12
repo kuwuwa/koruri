@@ -1,6 +1,9 @@
 <resources>
     <string name="app_name">Koruri</string>
     <string name="koruri_key">com.k3ntaroo.koruri</string>
+
     <string name="access_token_path">access_token</string>
     <string name="access_token_secret_path">access_token_secret</string>
+
+    <string name="tweet_sent_succesfully">your tweet has been sent successfully :)</string>
 </resources>
