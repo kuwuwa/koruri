@@ -5,4 +5,5 @@
     <color name="colorAccent">#f76597</color>
 
     <color name="new_tweet_color">#FFFF88</color>
+    <color name="defaultBg">#EEEEEE</color>
 </resources>

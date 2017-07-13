@@ -28,6 +28,7 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 
+import twitter4j.Paging;
 import twitter4j.RateLimitStatus;
 import twitter4j.ResponseList;
 import twitter4j.Status;
@@ -53,12 +54,13 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
             public @NonNull View getView (int pos, @Nullable View view, ViewGroup par) {
                 Status st = getItem(pos);
                 if (st.getId() == -2) {
+                    LayoutInflater li = LayoutInflater.from(getContext());
+                    view = li.inflate(R.layout.continue_in_list, par, false);
+                    return view;
                 }
 
-                if (null == view) {
-                    LayoutInflater li = LayoutInflater.from(getContext());
-                    view = li.inflate(R.layout.post_in_list, par, false);
-                }
+                LayoutInflater li = LayoutInflater.from(getContext());
+                view = li.inflate(R.layout.post_in_list, par, false);
 
 
                 TextView authorText = (TextView) view.findViewById(R.id.post_author);
@@ -89,7 +91,7 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
                     String dateStr = SIMPLE_DATE_FORMAT.format(rtStatus.getCreatedAt());
                     dateText.setText(dateStr);
                 } else {
-                    view.setBackgroundColor(Color.parseColor("#FFFFFF"));
+                    view.setBackgroundColor(Color.parseColor("#FAFAFA"));
                     String authorStr = "@" + st.getUser().getScreenName();
                     authorText.setText(authorStr);
 
@@ -144,10 +146,17 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
     public void onItemClick(AdapterView<?> parent, View view, int pos, long id) {
         // a post in list is clicked
         Status status = statusList.get(pos);
-        if (status.isRetweet()) status = status.getRetweetedStatus();
-        Intent detailIntent = new Intent(this, TweetDetailActivity.class);
-        detailIntent.putExtra(TweetDetailActivity.STATUS_KEY, status);
-        startActivity(detailIntent);
+        if (status.getId() != -2) { // go to the detail
+            if (status.isRetweet()) status = status.getRetweetedStatus();
+            Intent detailIntent = new Intent(this, TweetDetailActivity.class);
+            detailIntent.putExtra(TweetDetailActivity.STATUS_KEY, status);
+            startActivity(detailIntent);
+            return;
+        }
+
+        // [status.getId() == -2] -> continue
+        long maxId = ((ContinueItem) status).maxId;
+        new ExtraTweetThread(maxId, pos).start();
     }
 
     @Override
@@ -190,6 +199,27 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
         }
     }
 
+    private class ExtraTweetThread extends Thread {
+        public final long maxId;
+        public final int pos;
+
+        public ExtraTweetThread(long maxId, int pos) {
+            this.maxId = maxId;
+            this.pos = pos;
+        }
+
+        @Override public void run() {
+            Paging paging = new Paging().maxId(maxId).count(50);
+            try {
+                ResponseList<Status> statuses = twitter.getHomeTimeline(paging);
+                Message msg = handler.obtainMessage(MSG_EXT_SUCCESS, pos, -1, statuses);
+                handler.sendMessage(msg);
+            } catch (TwitterException e) {
+                Message msg = handler.obtainMessage(MSG_EXT_FAILED);
+            }
+        }
+    }
+
     // tweet
     private class UpdateStatusThread extends Thread {
         private final String text;
@@ -201,10 +231,10 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
         @Override public void run() {
             try {
                 twitter.updateStatus(this.text);
-                Message msg = handler.obtainMessage(UPD_SUCCESS);
+                Message msg = handler.obtainMessage(MSG_UPD_SUCCESS);
                 handler.sendMessage(msg);
             } catch (TwitterException e) {
-                Message msg = handler.obtainMessage(UPD_FAIL);
+                Message msg = handler.obtainMessage(MSG_UPD_FAILED);
                 handler.sendMessage(msg);
             }
         }
@@ -214,29 +244,17 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
 
     private final static int MSG_TL = 1210;
     private final static int MSG_TL_FAILED = 1211;
-    private final static int UPD_SUCCESS = 1221;
-    private final static int UPD_FAIL = 1222;
+    private final static int MSG_UPD_SUCCESS = 1221;
+    private final static int MSG_UPD_FAILED = 1222;
+    private final static int MSG_EXT_SUCCESS = 1231;
+    private final static int MSG_EXT_FAILED = 1232;
     private Handler handler = new Handler(new Handler.Callback() {
-        private final static int ONE_MILLISEC_PER_SEC = 1000;
-
         @Override public boolean handleMessage (Message msg) {
             if (msg.what == MSG_TL) {
                 ResponseList<Status> newStList = (ResponseList<Status>) msg.obj;
 
                 RateLimitStatus limitStatus = newStList.getRateLimitStatus();
-
-                long nowTime = Calendar.getInstance().getTimeInMillis();
-                long delay = ONE_MILLISEC_PER_SEC * limitStatus.getSecondsUntilReset();
-                String resetDateStr = SIMPLE_DATE_FORMAT.format(new Date(nowTime + delay));
-
-                String newTitle =
-                        "UPDATE(" + limitStatus.getRemaining() + "/" + limitStatus.getLimit() + ")"
-                                + "(reset: " + resetDateStr.substring(11) + ")";
-                ActionMenuItemView updMenu = (ActionMenuItemView) findViewById(R.id.update_timeline);
-
-                if (null != updMenu) {
-                    updMenu.setText(newTitle);
-                }
+                refreshUpdateMenu(limitStatus);
 
                 for (Status st : newStList) {
                     Log.d(TAG, st.getUser().getScreenName() + ":" + st.getText());
@@ -249,7 +267,7 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
                     final Status ls = newStList.get(newStList.size() - 1);
                     final long lsTime = ls.getCreatedAt().getTime();
                     boolean add = false;
-                    for (int j = 0; j < tlAdapter.getCount(); ++j) {
+                    for (int j = 0; j < tlAdapter.getCount()-1; ++j) {
                         if (!add && lsTime > tlAdapter.getItem(j).getCreatedAt().getTime()) {
                             add = true;
                         }
@@ -260,9 +278,11 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
                     tlAdapter.clear();
                     tlAdapter.addAll(newStList);
                 }
+                long lastId = tlAdapter.getItem(tlAdapter.getCount()-1).getId();
+                tlAdapter.add(new ContinueItem(lastId-1));
             } else if (msg.what == MSG_TL_FAILED) {
                 Toast.makeText(ctx, "failed in getting your home TL", Toast.LENGTH_SHORT);
-            } else if (msg.what == UPD_SUCCESS) {
+            } else if (msg.what == MSG_UPD_SUCCESS) {
                     final EditText tweetText = (EditText) findViewById(R.id.timeline_tweet_text);
                     Toast.makeText(
                             ctx,
@@ -270,14 +290,67 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
                             Toast.LENGTH_SHORT).show();
 
                     tweetText.setText(""); // clear
-            } else if (msg.what == UPD_FAIL) {
+            } else if (msg.what == MSG_UPD_FAILED) {
                 Toast.makeText(
                         ctx,
                         getString(R.string.tweet_sent_unsuccesfully),
+                        Toast.LENGTH_SHORT).show();
+            } else if (msg.what == MSG_EXT_SUCCESS) {
+                int pos = msg.arg1;
+                ResponseList<Status> extraStatuses = (ResponseList<Status>) msg.obj;
+
+                refreshUpdateMenu(extraStatuses.getRateLimitStatus());
+
+                { Status cs = tlAdapter.getItem(pos); tlAdapter.remove(cs); }
+
+                Status lastExtSt = extraStatuses.get(extraStatuses.size()-1);
+                int idx = tlAdapter.getCount();
+                for (int j = pos; j < tlAdapter.getCount(); ++j) {
+                    Status st = tlAdapter.getItem(j);
+                    if (st.getCreatedAt().getTime() < lastExtSt.getCreatedAt().getTime()) {
+                        idx = j;
+                        break;
+                    }
+                }
+
+                for (int c = 0; c < idx - pos; ++c) {
+                    tlAdapter.remove(tlAdapter.getItem(pos));
+                }
+
+                for (int j = extraStatuses.size() - 1; j >= 0; --j) {
+                    tlAdapter.insert(extraStatuses.get(j), pos);
+                }
+
+                if (idx == pos) {
+                    int nextContPos = pos + extraStatuses.size();
+                    long lastId = tlAdapter.getItem(nextContPos-1).getId();
+                    tlAdapter.insert(new ContinueItem(lastId - 1), nextContPos);
+                }
+            } else if (msg.what == MSG_EXT_FAILED) {
+                Toast.makeText(
+                        ctx,
+                        "failed to get extra tweets :(",
                         Toast.LENGTH_SHORT).show();
             }
             return false;
         }
     });
+
+    private final static int ONE_MILLISEC_PER_SEC = 1000;
+
+    private void refreshUpdateMenu(RateLimitStatus limitStatus) {
+        long nowTime = Calendar.getInstance().getTimeInMillis();
+        long delay = ONE_MILLISEC_PER_SEC * limitStatus.getSecondsUntilReset();
+        String resetDateStr = SIMPLE_DATE_FORMAT.format(new Date(nowTime + delay));
+
+        String newTitle =
+                "UPDATE(" + limitStatus.getRemaining() + "/" + limitStatus.getLimit() + ")"
+                        + "(reset: " + resetDateStr.substring(11) + ")";
+        ActionMenuItemView updMenu = (ActionMenuItemView) findViewById(R.id.update_timeline);
+
+        if (null != updMenu) {
+            updMenu.setText(newTitle);
+        }
+    }
 }
 

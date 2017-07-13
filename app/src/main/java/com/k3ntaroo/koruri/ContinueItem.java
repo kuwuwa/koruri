@@ -21,11 +21,19 @@ import twitter4j.UserMentionEntity;
  */
 
 public class ContinueItem implements Status {
-    @Override
-    public Date getCreatedAt() { return null; }
+    public final long maxId;
+
+    ContinueItem (final long maxId) {
+        this.maxId = maxId;
+    }
 
     @Override
-    public long getId() { return 0; }
+    public long getId() { return -2; }
+
+    //// following functions does not work well ;)
+
+    @Override
+    public Date getCreatedAt() { return null; }
 
     @Override
     public String getText() { return null; }
