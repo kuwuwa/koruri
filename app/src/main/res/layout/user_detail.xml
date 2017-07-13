@@ -6,10 +6,10 @@
     <!-- bio -->
     <LinearLayout
         android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:layout_margin="2pt"
+        android:layout_margin="4pt"
         android:orientation="vertical">
         <LinearLayout
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_margin="2pt"
             android:orientation="horizontal">
@@ -19,7 +19,9 @@
             </ImageView>
 
             <LinearLayout
-                android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_width="0dp" android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_margin="2pt"
                 android:orientation="vertical">
                 <LinearLayout
                     android:layout_width="wrap_content" android:layout_height="wrap_content"
@@ -58,11 +60,19 @@
                         android:text=")"/>
                 </LinearLayout>
             </LinearLayout>
+            <Button android:id="@+id/user_follow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="right"
+                android:text="follow">
+
+            </Button>
         </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_margin="2pt"
             android:orientation="horizontal">
             <LinearLayout
                 android:layout_width="wrap_content"
@@ -101,19 +111,27 @@
             android:textSize="9pt"
             android:text="bio"/>
 
-        <TextView android:id="@+id/user_location"
-            android:layout_width="wrap_content"
-            android:layout_height="match_parent"
-            android:layout_margin="2pt"
-            android:textSize="9pt"
-            android:text="location"/>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <TextView android:id="@+id/user_location"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_margin="2pt"
+                android:layout_weight="1"
+                android:textSize="9pt"
+                android:text="location"/>
 
-        <TextView android:id="@+id/user_website"
-            android:layout_width="wrap_content"
-            android:layout_height="match_parent"
-            android:layout_margin="2pt"
-            android:textSize="9pt"
-            android:text="website"/>
+            <TextView android:id="@+id/user_website"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_margin="2pt"
+                android:layout_weight="1"
+                android:textSize="9pt"
+                android:text="website"/>
+        </LinearLayout>
+
     </LinearLayout>
 
     <!-- FOLLOW BUTTON -->

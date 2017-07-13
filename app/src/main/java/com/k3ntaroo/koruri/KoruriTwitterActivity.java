@@ -105,7 +105,6 @@ public abstract class KoruriTwitterActivity extends AppCompatActivity {
     protected void onActivityResult(int reqCode, int resCode, Intent data) {
         super.onActivityResult(reqCode, resCode, data);
         if (reqCode == AUTH_REQ_CODE && resCode == RESULT_OK) {
-            myId = data.getLongExtra("userId", -1);
             Log.d(KEY_NAME, "authorized!");
             recreate();
         }
