@@ -5,7 +5,6 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
-import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -68,6 +67,12 @@ public class TweetDetailActivity extends KoruriTwitterActivity implements View.O
     }
 
     @Override
+    public void onResume() {
+        super.onResume();
+        refreshButtons();
+    }
+
+    @Override
     public void onClick(View v) {
         if (v.getId() == R.id.post_author_box) {
             User user = detailedStatus.getUser();
@@ -82,9 +87,9 @@ public class TweetDetailActivity extends KoruriTwitterActivity implements View.O
                 th.start();
             }
         } else if (v.getId() == R.id.retweet_post_button) {
-            new RetweetPostThread().start();
+            new RetweetThread().start();
         } else if (v.getId() == R.id.like_post_button) {
-            new LikePostThread().start();
+            new LikeToggleThread().start();
         } else if (v.getId() == R.id.delete_button) {
             new DeletePostThread().start();
         }
@@ -112,26 +117,32 @@ public class TweetDetailActivity extends KoruriTwitterActivity implements View.O
         }
     }
 
-    private final class RetweetPostThread extends Thread {
+    private final class RetweetThread extends Thread {
         @Override public void run() {
             try {
-                twitter.retweetStatus(detailedStatus.getId());
-                Message msg = handler.obtainMessage(MSG_RETWEET_SUCCESS);
-                handler.sendMessage(msg);
+                if (!detailedStatus.isRetweeted()) {
+                    Status updStatus = twitter.retweetStatus(detailedStatus.getId());
+                    Message msg = handler.obtainMessage(MSG_RETWEET_SUCCESS, updStatus);
+                    handler.sendMessage(msg);
+                } else {
+                    Message msg = handler.obtainMessage(MSG_RETWEET_FAILED);
+                }
             } catch (TwitterException e) {
                 Message msg = handler.obtainMessage(MSG_RETWEET_FAILED);
             }
         }
     }
 
-    private final class LikePostThread extends Thread {
+    private final class LikeToggleThread extends Thread {
         @Override public void run() {
             try {
-                twitter.createFavorite(detailedStatus.getId());
-                Message msg = handler.obtainMessage(MSG_LIKE_SUCCESS);
+                Status updStatus = detailedStatus.isFavorited() ?
+                        twitter.destroyFavorite(detailedStatus.getId()) :
+                        twitter.createFavorite(detailedStatus.getId());
+                Message msg = handler.obtainMessage(MSG_LIKE_TOGGLE_SUCCESS, updStatus);
                 handler.sendMessage(msg);
             } catch (TwitterException e) {
-                Message msg = handler.obtainMessage(MSG_LIKE_FAILED);
+                Message msg = handler.obtainMessage(MSG_LIKE_TOGGLE_FAILED);
             }
         }
     }
@@ -152,8 +163,8 @@ public class TweetDetailActivity extends KoruriTwitterActivity implements View.O
     private static final int MSG_STATUS_MINE = 1340;
     private static final int MSG_REPLY_SUCCESS = 1301;
     private static final int MSG_REPLY_FAILED = 1302;
-    private static final int MSG_LIKE_SUCCESS = 1311;
-    private static final int MSG_LIKE_FAILED = 1312;
+    private static final int MSG_LIKE_TOGGLE_SUCCESS = 1311;
+    private static final int MSG_LIKE_TOGGLE_FAILED = 1312;
     private static final int MSG_RETWEET_SUCCESS = 1321;
     private static final int MSG_RETWEET_FAILED = 1322;
     private static final int MSG_DELETE_SUCCESS = 1331;
@@ -167,14 +178,18 @@ public class TweetDetailActivity extends KoruriTwitterActivity implements View.O
                 replyText.setText("");
             } else if (msg.what == MSG_REPLY_FAILED) {
                 Toast.makeText(ctx, "failed :(", Toast.LENGTH_SHORT);
-            } else if (msg.what == MSG_LIKE_SUCCESS) {
+            } else if (msg.what == MSG_LIKE_TOGGLE_SUCCESS) {
+                detailedStatus = (Status) msg.obj;
+                refreshButtons();
                 Toast.makeText(ctx, "success :)", Toast.LENGTH_SHORT);
-            } else if (msg.what == MSG_LIKE_FAILED) {
+            } else if (msg.what == MSG_LIKE_TOGGLE_FAILED) {
                 Toast.makeText(ctx, "failed :(", Toast.LENGTH_SHORT);
             } else if (msg.what == MSG_RETWEET_SUCCESS) {
+                detailedStatus = (Status) msg.obj;
+                refreshButtons();
                 Toast.makeText(ctx, "success :)", Toast.LENGTH_SHORT);
             } else if (msg.what == MSG_RETWEET_FAILED) {
-                Toast.makeText(ctx, "failed :(", Toast.LENGTH_SHORT);
+                Toast.makeText(ctx, "failed, it may be already retweeted", Toast.LENGTH_SHORT);
             } else if (msg.what == MSG_DELETE_SUCCESS) {
                 Toast.makeText(ctx, "successfully deleted ;)", Toast.LENGTH_LONG);
                 finish();
@@ -184,4 +199,15 @@ public class TweetDetailActivity extends KoruriTwitterActivity implements View.O
             return false;
         }
     });
+
+    void refreshButtons() {
+        if (null != detailedStatus) {
+            Button likeButton = (Button) findViewById(R.id.like_post_button);
+            likeButton.setText(detailedStatus.isFavorited() ? "un-like" : "like");
+
+            Button retweetButton = (Button) findViewById(R.id.retweet_post_button);
+            retweetButton.setText(detailedStatus.isRetweeted() ? "retweeted" : "RT");
+            if (detailedStatus.isRetweeted()) retweetButton.setEnabled(false);
+        }
+    }
 }

@@ -150,6 +150,7 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
         @Override public void run() {
             try {
                 ResponseList<Status> tl = twitter.getHomeTimeline();
+
                 Message msg = handler.obtainMessage(MSG_TL, tl);
                 handler.sendMessage(msg);
             } catch (TwitterException e) {
