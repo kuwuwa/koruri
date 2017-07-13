@@ -1,6 +1,7 @@
 package com.k3ntaroo.koruri;
 
 import android.content.Context;
+import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -11,6 +12,7 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ListView;
@@ -22,6 +24,7 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 
+import twitter4j.Paging;
 import twitter4j.RateLimitStatus;
 import twitter4j.Relationship;
 import twitter4j.ResponseList;
@@ -29,7 +32,8 @@ import twitter4j.Status;
 import twitter4j.TwitterException;
 import twitter4j.User;
 
-public class UserDetailActivity extends KoruriTwitterActivity implements View.OnClickListener {
+public class UserDetailActivity extends KoruriTwitterActivity
+        implements View.OnClickListener, AdapterView.OnItemClickListener {
     private final static String className = UserDetailActivity.class.getName();
     public final static String USER_KEY = className + "#user";
 
@@ -79,12 +83,16 @@ public class UserDetailActivity extends KoruriTwitterActivity implements View.On
             public
             @NonNull
             View getView(int pos, @Nullable View view, ViewGroup par) {
-                if (null == view) {
-                    LayoutInflater li = LayoutInflater.from(getContext());
-                    view = li.inflate(R.layout.post_in_list, par, false);
-                }
 
                 Status st = getItem(pos);
+                LayoutInflater li = LayoutInflater.from(getContext());
+
+                if (st.getId() == -2) {
+                    view = li.inflate(R.layout.continue_in_list, par, false);
+                    return view;
+                }
+
+                view = li.inflate(R.layout.post_in_list, par, false);
 
                 TextView authorText = (TextView) view.findViewById(R.id.post_author);
                 String authorStr = "@" + st.getUser().getScreenName();
@@ -103,6 +111,7 @@ public class UserDetailActivity extends KoruriTwitterActivity implements View.On
                 return view;
             }
         };
+        lv.setOnItemClickListener(this);
         lv.setAdapter(twAdapter);
     }
 
@@ -122,6 +131,23 @@ public class UserDetailActivity extends KoruriTwitterActivity implements View.On
         }
     }
 
+    @Override
+    public void onItemClick(AdapterView<?> parent, View view, int pos, long id) {
+        // a post in list is clicked
+        Status status = statusList.get(pos);
+        if (status.getId() != -2) { // go to the detail
+            if (status.isRetweet()) status = status.getRetweetedStatus();
+            Intent detailIntent = new Intent(this, TweetDetailActivity.class);
+            detailIntent.putExtra(TweetDetailActivity.STATUS_KEY, status);
+            startActivity(detailIntent);
+            return;
+        }
+
+        // [status.getId() == -2] -> continue
+        long maxId = ((ContinueItem) status).maxId;
+        new ExtraUserStatusesThread(maxId, pos).start();
+    }
+
     private class UserStatusesThread extends Thread {
         @Override public void run() {
             try {
@@ -132,6 +158,29 @@ public class UserDetailActivity extends KoruriTwitterActivity implements View.On
                 Message msg = hdl.obtainMessage(MSG_USER_STATUSES_FAILED);
                 hdl.sendMessage(msg);
             }
+        }
+    }
+    private class ExtraUserStatusesThread extends Thread {
+        public final long maxId;
+        public final int pos;
+
+        public ExtraUserStatusesThread(long maxId, int pos) {
+            this.maxId = maxId;
+            this.pos = pos;
+        }
+
+        @Override public void run() {
+            Paging paging = new Paging().maxId(maxId).count(50);
+            try {
+                ResponseList<Status> statuses = twitter.getUserTimeline(user.getId(), paging);
+                Message msg = hdl.obtainMessage(MSG_USER_EXT_STATUSES_SUCCESS,
+                        pos, -1, statuses);
+                hdl.sendMessage(msg);
+            } catch (TwitterException e) {
+                Message msg = hdl.obtainMessage(MSG_USER_EXT_STATUSES_FAILED);
+                hdl.sendMessage(msg);
+            }
+
         }
     }
 
@@ -175,6 +224,8 @@ public class UserDetailActivity extends KoruriTwitterActivity implements View.On
     private final static int MSG_USER_FOLLOW_FAILED = 1421;
     private final static int MSG_USER_FRIENDSHIP_SUCCESS = 1430;
     private final static int MSG_USER_FRIENDSHIP_FAILED = 1431;
+    private final static int MSG_USER_EXT_STATUSES_SUCCESS = 1440;
+    private final static int MSG_USER_EXT_STATUSES_FAILED = 1441;
     private final Handler hdl = new Handler(new Handler.Callback() {
         private final static int ONE_MILLISEC_PER_SEC = 1000;
         @Override public boolean handleMessage(Message msg) {
@@ -204,6 +255,8 @@ public class UserDetailActivity extends KoruriTwitterActivity implements View.On
                     twAdapter.clear();
                     twAdapter.addAll(newStList);
                 }
+                long lastId = twAdapter.getItem(twAdapter.getCount()-1).getId();
+                twAdapter.add(new ContinueItem(lastId-1));
             } else if (msg.what == MSG_USER_STATUSES_FAILED) {
                 Toast.makeText(ctx, "failed to get the user's statuses",
                         Toast.LENGTH_LONG);
@@ -217,6 +270,37 @@ public class UserDetailActivity extends KoruriTwitterActivity implements View.On
                 friendship = rel;
                 Button followButton = (Button) findViewById(R.id.user_follow);
                 followButton.setText(rel.isSourceFollowingTarget() ? "unfollow" : "follow");
+            } else if (msg.what == MSG_USER_EXT_STATUSES_SUCCESS) {
+                int pos = msg.arg1;
+
+                ResponseList<Status> extraStatuses = (ResponseList<Status>) msg.obj;
+
+                { Status cs = twAdapter.getItem(pos); twAdapter.remove(cs); }
+
+                Status lastExtSt = extraStatuses.get(extraStatuses.size()-1);
+                int idx = twAdapter.getCount();
+                for (int j = pos; j < twAdapter.getCount(); ++j) {
+                    Status st = twAdapter.getItem(j);
+                    if (st.getCreatedAt().getTime() < lastExtSt.getCreatedAt().getTime()) {
+                        idx = j;
+                        break;
+                    }
+                }
+
+                for (int c = 0; c < idx - pos; ++c) {
+                    twAdapter.remove(twAdapter.getItem(pos));
+                }
+
+                for (int j = extraStatuses.size() - 1; j >= 0; --j) {
+                    twAdapter.insert(extraStatuses.get(j), pos);
+                }
+
+                if (idx == pos) {
+                    int nextContPos = pos + extraStatuses.size();
+                    long lastId = twAdapter.getItem(nextContPos-1).getId();
+                    twAdapter.insert(new ContinueItem(lastId - 1), nextContPos);
+                }
+            } else if (msg.what == MSG_USER_EXT_STATUSES_FAILED) {
             }
             return false;
         }

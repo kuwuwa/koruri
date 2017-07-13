@@ -183,7 +183,6 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
         th.start();
     }
 
-
     private class GetHomeTimelineThread extends Thread {
         @Override public void run() {
             try {
