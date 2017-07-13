@@ -2,6 +2,7 @@ package com.k3ntaroo.koruri;
 
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Color;
 import android.os.Handler;
 import android.os.Message;
 import android.os.Bundle;
@@ -50,26 +51,53 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
         tlAdapter = new ArrayAdapter<Status>(this, 0, statusList) {
             @Override
             public @NonNull View getView (int pos, @Nullable View view, ViewGroup par) {
+                Status st = getItem(pos);
+                if (st.getId() == -2) {
+                }
+
                 if (null == view) {
                     LayoutInflater li = LayoutInflater.from(getContext());
                     view = li.inflate(R.layout.post_in_list, par, false);
                 }
 
-                Status st = getItem(pos);
 
                 TextView authorText = (TextView) view.findViewById(R.id.post_author);
-                String authorStr = "@" + st.getUser().getScreenName();
-                authorText.setText(authorStr);
-
                 TextView contentText = (TextView) view.findViewById(R.id.post_content);
-                contentText.setText(st.getText());
-
                 TextView dateText = (TextView) view.findViewById(R.id.post_date);
-                String dateStr = SIMPLE_DATE_FORMAT.format(st.getCreatedAt());
-                dateText.setText(dateStr);
+
+                if (st.isFavorited()) {
+                    Log.d(TAG, st.getUser().getScreenName() + ":" + st.getText());
+                }
+                final int textColor = Color.parseColor(st.isFavorited() ? "#AA4444" : "#000000");
+                authorText.setTextColor(textColor);
+                contentText.setTextColor(textColor);
+                dateText.setTextColor(textColor);
 
                 TextView statusIdText = (TextView) view.findViewById(R.id.post_index);
                 statusIdText.setText(Long.toString(pos));
+
+                if (st.isRetweet()) {
+                    view.setBackgroundColor(Color.parseColor("#DDFFDD"));
+                    Status rtStatus = st.getRetweetedStatus();
+
+                    String authorStr = "@" + rtStatus.getUser().getScreenName() +
+                            " (RT by @" + st.getUser().getScreenName() + ")";
+                    authorText.setText(authorStr);
+
+                    contentText.setText(rtStatus.getText());
+
+                    String dateStr = SIMPLE_DATE_FORMAT.format(rtStatus.getCreatedAt());
+                    dateText.setText(dateStr);
+                } else {
+                    view.setBackgroundColor(Color.parseColor("#FFFFFF"));
+                    String authorStr = "@" + st.getUser().getScreenName();
+                    authorText.setText(authorStr);
+
+                    contentText.setText(st.getText());
+
+                    String dateStr = SIMPLE_DATE_FORMAT.format(st.getCreatedAt());
+                    dateText.setText(dateStr);
+                }
 
                 return view;
             }
@@ -116,6 +144,7 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
     public void onItemClick(AdapterView<?> parent, View view, int pos, long id) {
         // a post in list is clicked
         Status status = statusList.get(pos);
+        if (status.isRetweet()) status = status.getRetweetedStatus();
         Intent detailIntent = new Intent(this, TweetDetailActivity.class);
         detailIntent.putExtra(TweetDetailActivity.STATUS_KEY, status);
         startActivity(detailIntent);
