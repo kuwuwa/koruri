@@ -2,6 +2,7 @@ package com.k3ntaroo.koruri;
 
 import android.support.annotation.NonNull;
 
+import java.util.Calendar;
 import java.util.Date;
 
 import twitter4j.GeoLocation;
@@ -33,7 +34,7 @@ public class ContinueItem implements Status {
     //// following functions does not work well ;)
 
     @Override
-    public Date getCreatedAt() { return null; }
+    public Date getCreatedAt() { return Calendar.getInstance().getTime(); }
 
     @Override
     public String getText() { return null; }

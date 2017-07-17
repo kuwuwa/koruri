@@ -42,6 +42,8 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
     private ArrayAdapter<Status> tlAdapter;
     private List<Status> statusList = new ArrayList<>();
 
+    private Handler statusesHandler;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -104,6 +106,7 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
                 return view;
             }
         };
+        statusesHandler = new Handler(new StatusesHandlerCallback(ctx, tlAdapter));
 
         final ListView lv = (ListView) findViewById(R.id.post_in_list);
         lv.setAdapter(tlAdapter);
@@ -186,14 +189,19 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
     private class GetHomeTimelineThread extends Thread {
         @Override public void run() {
             try {
-                ResponseList<Status> tl = twitter.getHomeTimeline();
+                final ResponseList<Status> statuses = twitter.getHomeTimeline();
 
-                Message msg = handler.obtainMessage(MSG_TL, tl);
-                handler.sendMessage(msg);
+                final Message sttMsg = statusesHandler
+                        .obtainMessage(StatusesHandlerCallback.MSG_LATEST_SUCCESS, statuses);
+                statusesHandler.sendMessage(sttMsg);
+
+                final Message limMsg = handler
+                        .obtainMessage(MSG_UPDATE_RATE_LIMIT, statuses.getRateLimitStatus());
+                handler.sendMessage(limMsg);
             } catch (TwitterException e) {
-                Message msg = handler.obtainMessage(MSG_TL_FAILED);
-                handler.sendMessage(msg);
-                // xx
+                Message msg = statusesHandler
+                        .obtainMessage(StatusesHandlerCallback.MSG_LATEST_FAILED);
+                statusesHandler.sendMessage(msg);
             }
         }
     }
@@ -210,11 +218,18 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
         @Override public void run() {
             Paging paging = new Paging().maxId(maxId).count(50);
             try {
-                ResponseList<Status> statuses = twitter.getHomeTimeline(paging);
-                Message msg = handler.obtainMessage(MSG_EXT_SUCCESS, pos, -1, statuses);
-                handler.sendMessage(msg);
+                final ResponseList<Status> statuses = twitter.getHomeTimeline(paging);
+                final Message sttMsg = statusesHandler
+                        .obtainMessage(StatusesHandlerCallback.MSG_EXT_SUCCESS, pos, -1, statuses);
+                statusesHandler.sendMessage(sttMsg);
+
+                final Message limMsg = handler
+                        .obtainMessage(MSG_UPDATE_RATE_LIMIT, statuses.getRateLimitStatus());
+                handler.sendMessage(limMsg);
             } catch (TwitterException e) {
-                Message msg = handler.obtainMessage(MSG_EXT_FAILED);
+                Message msg = statusesHandler
+                        .obtainMessage(StatusesHandlerCallback.MSG_EXT_FAILED);
+                statusesHandler.sendMessage(msg);
             }
         }
     }
@@ -230,58 +245,21 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
         @Override public void run() {
             try {
                 twitter.updateStatus(this.text);
-                Message msg = handler.obtainMessage(MSG_UPD_SUCCESS);
-                handler.sendMessage(msg);
+                handler.sendMessage(handler.obtainMessage(MSG_UPD_SUCCESS));
             } catch (TwitterException e) {
-                Message msg = handler.obtainMessage(MSG_UPD_FAILED);
-                handler.sendMessage(msg);
+                handler.sendMessage(handler.obtainMessage(MSG_UPD_FAILED));
             }
         }
     }
 
     private Context ctx = this;
 
-    private final static int MSG_TL = 1210;
-    private final static int MSG_TL_FAILED = 1211;
     private final static int MSG_UPD_SUCCESS = 1221;
     private final static int MSG_UPD_FAILED = 1222;
-    private final static int MSG_EXT_SUCCESS = 1231;
-    private final static int MSG_EXT_FAILED = 1232;
+    private final static int MSG_UPDATE_RATE_LIMIT = 1231;
     private Handler handler = new Handler(new Handler.Callback() {
         @Override public boolean handleMessage (Message msg) {
-            if (msg.what == MSG_TL) {
-                ResponseList<Status> newStList = (ResponseList<Status>) msg.obj;
-
-                RateLimitStatus limitStatus = newStList.getRateLimitStatus();
-                refreshUpdateMenu(limitStatus);
-
-                for (Status st : newStList) {
-                    Log.d(TAG, st.getUser().getScreenName() + ":" + st.getText());
-                }
-
-                if (statusList == null || statusList.size() == 0) {
-                    Log.d(TAG, "empty statuslist");
-                    tlAdapter.addAll(newStList);
-                } else {
-                    final Status ls = newStList.get(newStList.size() - 1);
-                    final long lsTime = ls.getCreatedAt().getTime();
-                    boolean add = false;
-                    for (int j = 0; j < tlAdapter.getCount()-1; ++j) {
-                        if (!add && lsTime > tlAdapter.getItem(j).getCreatedAt().getTime()) {
-                            add = true;
-                        }
-                        if (add) {
-                            newStList.add(tlAdapter.getItem(j));
-                        }
-                    }
-                    tlAdapter.clear();
-                    tlAdapter.addAll(newStList);
-                }
-                long lastId = tlAdapter.getItem(tlAdapter.getCount()-1).getId();
-                tlAdapter.add(new ContinueItem(lastId-1));
-            } else if (msg.what == MSG_TL_FAILED) {
-                Toast.makeText(ctx, "failed in getting your home TL", Toast.LENGTH_SHORT);
-            } else if (msg.what == MSG_UPD_SUCCESS) {
+            if (msg.what == MSG_UPD_SUCCESS) {
                     final EditText tweetText = (EditText) findViewById(R.id.timeline_tweet_text);
                     Toast.makeText(
                             ctx,
@@ -294,42 +272,9 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
                         ctx,
                         getString(R.string.tweet_sent_unsuccesfully),
                         Toast.LENGTH_SHORT).show();
-            } else if (msg.what == MSG_EXT_SUCCESS) {
-                int pos = msg.arg1;
-                ResponseList<Status> extraStatuses = (ResponseList<Status>) msg.obj;
-
-                refreshUpdateMenu(extraStatuses.getRateLimitStatus());
-
-                { Status cs = tlAdapter.getItem(pos); tlAdapter.remove(cs); }
-
-                Status lastExtSt = extraStatuses.get(extraStatuses.size()-1);
-                int idx = tlAdapter.getCount();
-                for (int j = pos; j < tlAdapter.getCount(); ++j) {
-                    Status st = tlAdapter.getItem(j);
-                    if (st.getCreatedAt().getTime() < lastExtSt.getCreatedAt().getTime()) {
-                        idx = j;
-                        break;
-                    }
-                }
-
-                for (int c = 0; c < idx - pos; ++c) {
-                    tlAdapter.remove(tlAdapter.getItem(pos));
-                }
-
-                for (int j = extraStatuses.size() - 1; j >= 0; --j) {
-                    tlAdapter.insert(extraStatuses.get(j), pos);
-                }
-
-                if (idx == pos) {
-                    int nextContPos = pos + extraStatuses.size();
-                    long lastId = tlAdapter.getItem(nextContPos-1).getId();
-                    tlAdapter.insert(new ContinueItem(lastId - 1), nextContPos);
-                }
-            } else if (msg.what == MSG_EXT_FAILED) {
-                Toast.makeText(
-                        ctx,
-                        "failed to get extra tweets :(",
-                        Toast.LENGTH_SHORT).show();
+            } else if (msg.what == MSG_UPDATE_RATE_LIMIT) {
+                RateLimitStatus newLimit = (RateLimitStatus) msg.obj;
+                updateLimit(newLimit);
             }
             return false;
         }
@@ -337,7 +282,7 @@ public class TimelineActivity extends KoruriTwitterActivity implements View.OnCl
 
     private final static int ONE_MILLISEC_PER_SEC = 1000;
 
-    private void refreshUpdateMenu(RateLimitStatus limitStatus) {
+    private void updateLimit(RateLimitStatus limitStatus) {
         long nowTime = Calendar.getInstance().getTimeInMillis();
         long delay = ONE_MILLISEC_PER_SEC * limitStatus.getSecondsUntilReset();
         String resetDateStr = SIMPLE_DATE_FORMAT.format(new Date(nowTime + delay));
